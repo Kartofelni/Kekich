@@ -4,25 +4,55 @@ from data import db_session
 from data.users import User
 from data.notes import Note
 from forms.user import RegisterForm
+from flask_login import LoginManager, login_user, login_required
+from flask_login import logout_user, current_user
 
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
 
 
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    db_sess = db_session.create_session()
+    return db_sess.query(User).get(user_id)
+
+
 @app.route('/')
 def index():
     db_sess = db_session.create_session()
-    news = db_sess.query(Note).filter(Note.is_private != True)
-    return render_template("index.html", news=news)
+    if current_user.is_authenticated:
+        notes = db_sess.query(Note).filter(
+            (Note.user == current_user) | (Note.is_private != True))
+    else:
+        notes = db_sess.query(Note).filter(Note.is_private != True)
+    return render_template("index.html", notes=notes)
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
     if form.validate_on_submit():
-        return redirect('/success')
+        db_sess = db_session.create_session()
+        user = db_sess.query(User).filter(User.email == form.email.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            return redirect("/")
+        return render_template('login.html',
+                               message="Неправильный логин или пароль",
+                               form=form)
     return render_template('login.html', title='Авторизация', form=form)
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect("/")
 
 
 @app.route('/register', methods=['GET', 'POST'])
