@@ -1,9 +1,11 @@
 from flask import Flask, render_template, redirect
-from loginform import LoginForm
+from flask import request, abort
+from forms.loginform import LoginForm
 from data import db_session
 from data.users import User
 from data.notes import Note
 from forms.user import RegisterForm
+from forms.notes import NoteForm
 from flask_login import LoginManager, login_user, login_required
 from flask_login import logout_user, current_user
 
@@ -78,6 +80,73 @@ def reqister():
         db_sess.commit()
         return redirect('/login')
     return render_template('register.html', title='Регистрация', form=form)
+
+
+@app.route('/note',  methods=['GET', 'POST'])
+@login_required
+def add_news():
+    form = NoteForm()
+    if form.validate_on_submit():
+        db_sess = db_session.create_session()
+        note = Note()
+        note.title = form.title.data
+        note.content = form.content.data
+        note.is_private = form.is_private.data
+        current_user.notes.append(note)
+        db_sess.merge(current_user)
+        db_sess.commit()
+        return redirect('/')
+    return render_template('notes.html', title='Добавление записи',
+                           form=form)
+
+
+@app.route('/note/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_news(id):
+    form = NoteForm()
+    if request.method == "GET":
+        db_sess = db_session.create_session()
+        note = db_sess.query(Note).filter(Note.id == id,
+                                          Note.user == current_user
+                                          ).first()
+        if note:
+            form.title.data = note.title
+            form.content.data = note.content
+            form.is_private.data = note.is_private
+        else:
+            abort(404)
+    if form.validate_on_submit():
+        db_sess = db_session.create_session()
+        note = db_sess.query(Note).filter(Note.id == id,
+                                          Note.user == current_user
+                                          ).first()
+        if note:
+            note.title = form.title.data
+            note.content = form.content.data
+            note.is_private = form.is_private.data
+            db_sess.commit()
+            return redirect('/')
+        else:
+            abort(404)
+    return render_template('notes.html',
+                           title='Редактирование записи',
+                           form=form
+                           )
+
+
+@app.route('/note_delete/<int:id>', methods=['GET', 'POST'])
+@login_required
+def news_delete(id):
+    db_sess = db_session.create_session()
+    note = db_sess.query(Note).filter(Note.id == id,
+                                      Note.user == current_user
+                                      ).first()
+    if note:
+        db_sess.delete(note)
+        db_sess.commit()
+    else:
+        abort(404)
+    return redirect('/')
 
 
 def main():

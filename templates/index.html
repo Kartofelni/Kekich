@@ -7,6 +7,16 @@
     <div>
         {{item.content}}
     </div>
+    {% if current_user.is_authenticated and current_user == item.user %}
+        <div>
+            <a href="/note/{{ item.id }}" class="btn btn-dark">
+                Изменить
+            </a>
+            <a href="/note_delete/{{ item.id }}" class="btn btn-dark">
+                Удалить
+            </a>
+        </div>
+    {% endif %}
     <div>
         Автор - {{item.user.name}}, Дата написания - {{item.created_date}}
     </div>
